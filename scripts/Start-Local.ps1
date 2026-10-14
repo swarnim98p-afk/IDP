@@ -24,7 +24,7 @@ try {
 } finally { Pop-Location }
 $records = @()
 function Start-PortalProcess([string]$Label, [string]$Executable, [string]$Arguments = '') {
-  $options = @{ FilePath=$Executable; WorkingDirectory=$PortalRoot; WindowStyle='Hidden'; PassThru=$true; RedirectStandardOutput="$run/$Label.out.log"; RedirectStandardError="$run/$Label.err.log" }
+  $options = @{ FilePath=$Executable; WorkingDirectory=$run; WindowStyle='Hidden'; PassThru=$true; RedirectStandardOutput="$run/$Label.out.log"; RedirectStandardError="$run/$Label.err.log" }
   if ($Arguments) { $options.ArgumentList=$Arguments }
   $process = Start-Process @options
   $script:records += @{id=$process.Id; executable=$Executable; started=$process.StartTime.ToUniversalTime().ToString('o')}
@@ -40,9 +40,16 @@ try {
   if ($Storage -eq 'dynamodb') {
     $java = Get-ChildItem "$PortalRoot/.tools/java/*/bin/java.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
     if (-not $java -or -not (Test-Path "$PortalRoot/.tools/dynamodb/DynamoDBLocal.jar")) { throw 'Portable Java/DynamoDB tools are missing. Use -Storage file or follow README setup.' }
-    Start-PortalProcess 'dynamodb' $java ('-Djava.library.path="' + "$PortalRoot/.tools/dynamodb/DynamoDBLocal_lib" + '" -jar "' + "$PortalRoot/.tools/dynamodb/DynamoDBLocal.jar" + '" -sharedDb -dbPath "' + "$run/dynamodb" + '" -port 8000')
+    Start-PortalProcess 'dynamodb' $java ('-Djava.library.path="' + "$PortalRoot/.tools/dynamodb/DynamoDBLocal_lib" + '" -jar "' + "$PortalRoot/.tools/dynamodb/DynamoDBLocal.jar" + '" -sharedDb -disableTelemetry -dbPath "' + "$run/dynamodb" + '" -port 8000')
     $env:AWS_REGION='ap-south-1';$env:DYNAMODB_TABLE='portal-projects';$env:DYNAMODB_ENDPOINT='http://127.0.0.1:8000';$env:DYNAMODB_CREATE_TABLE='true'
-    Start-Sleep -Seconds 3
+    $deadline = (Get-Date).AddSeconds(60)
+    $connected = $false
+    do {
+      $socket = [Net.Sockets.TcpClient]::new()
+      try { $socket.Connect('127.0.0.1',8000); $connected = $socket.Connected } catch {} finally { $socket.Dispose() }
+      if (-not $connected) { Start-Sleep -Milliseconds 500 }
+    } while (-not $connected -and (Get-Date) -lt $deadline)
+    if (-not $connected) { throw 'DynamoDB Local did not start. See .run/dynamodb.err.log.' }
   }
   Start-PortalProcess 'project-service' "$run/bin/project-service.exe"
   Wait-PortalReady 'http://127.0.0.1:8082/readyz'

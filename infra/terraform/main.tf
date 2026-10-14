@@ -1,5 +1,11 @@
 data "aws_caller_identity" "current" {}
-data "aws_availability_zones" "available" { state = "available" }
+data "aws_availability_zones" "available" {
+  state = "available"
+  filter {
+    name   = "zone-type"
+    values = ["availability-zone"]
+  }
+}
 locals {
   azs = slice(data.aws_availability_zones.available.names, 0, 2)
 }

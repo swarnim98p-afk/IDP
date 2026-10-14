@@ -2,10 +2,19 @@ $ErrorActionPreference = 'Stop'
 $PortalRoot = Split-Path $PSScriptRoot -Parent
 function Find-PortalTool([string]$Name, [string]$Portable) {
   $candidate = Join-Path $PortalRoot $Portable
-  if (Test-Path -LiteralPath $candidate) { return $candidate }
-  $command = Get-Command $Name -ErrorAction SilentlyContinue
-  if ($command) { return $command.Source }
-  throw "$Name is missing. See README.md for setup instructions."
+  $resolvedTool = $null
+  if (Test-Path -LiteralPath $candidate) { $resolvedTool = $candidate }
+  else {
+    $command = Get-Command $Name -ErrorAction SilentlyContinue
+    if ($command) { $resolvedTool = $command.Source }
+    elseif ($Name -eq 'docker.exe' -and (Test-Path 'C:/Program Files/Docker/Docker/resources/bin/docker.exe')) { $resolvedTool = 'C:/Program Files/Docker/Docker/resources/bin/docker.exe' }
+  }
+  if (-not $resolvedTool) { throw "$Name is missing. See README.md for setup instructions." }
+  if ($Name -eq 'docker.exe') {
+    # Docker invokes its credential helper by name, including from older terminals.
+    $env:PATH = (Split-Path $resolvedTool -Parent) + ';' + $env:PATH
+  }
+  return $resolvedTool
 }
 function Invoke-Checked([string]$Executable, [string[]]$Arguments) {
   & $Executable @Arguments

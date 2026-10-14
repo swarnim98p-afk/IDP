@@ -16,10 +16,12 @@ FROM runtime AS portal-api
 COPY --from=build /out/portal-api /app/portal-api
 ENV PORTAL_LISTEN_ADDR=:8080 FRONTEND_DIR="" PROJECT_SERVICE_URL=http://project-service:8082
 EXPOSE 8080
+HEALTHCHECK --interval=5s --timeout=5s --start-period=20s --retries=12 CMD wget -q -O /dev/null http://127.0.0.1:8080/readyz || exit 1
 ENTRYPOINT ["/app/portal-api"]
 
 FROM runtime AS project-service
 COPY --from=build /out/project-service /app/project-service
 ENV PROJECT_LISTEN_ADDR=:8082 PROJECT_STORE=dynamodb
 EXPOSE 8082
+HEALTHCHECK --interval=5s --timeout=5s --start-period=30s --retries=12 CMD wget -q -O /dev/null http://127.0.0.1:8082/readyz || exit 1
 ENTRYPOINT ["/app/project-service"]

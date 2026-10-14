@@ -1,7 +1,7 @@
 services:
   dynamodb:
-    image: amazon/dynamodb-local:3.3.0
-    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data"
+    image: amazon/dynamodb-local:3.3.1
+    command: "-jar DynamoDBLocal.jar -sharedDb -disableTelemetry -dbPath /home/dynamodblocal/data"
     user: "0:0"
     volumes:
       - dynamodb-data:/home/dynamodblocal/data
@@ -23,14 +23,16 @@ services:
       context: ./backend/portal-api
       target: portal-api
     depends_on:
-      - project-service
+      project-service:
+        condition: service_healthy
     restart: unless-stopped
   frontend:
     build: ./frontend
     ports:
       - "127.0.0.1:8083:8080"
     depends_on:
-      - portal-api
+      portal-api:
+        condition: service_healthy
     restart: unless-stopped
 volumes:
   dynamodb-data:
