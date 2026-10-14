@@ -1,0 +1,36 @@
+services:
+  dynamodb:
+    image: amazon/dynamodb-local:3.3.0
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data"
+    user: "0:0"
+    volumes:
+      - dynamodb-data:/home/dynamodblocal/data
+    restart: unless-stopped
+  project-service:
+    build:
+      context: ./backend/portal-api
+      target: project-service
+    environment:
+      AWS_REGION: ap-south-1
+      DYNAMODB_TABLE: portal-projects
+      DYNAMODB_ENDPOINT: http://dynamodb:8000
+      DYNAMODB_CREATE_TABLE: "true"
+    depends_on:
+      - dynamodb
+    restart: unless-stopped
+  portal-api:
+    build:
+      context: ./backend/portal-api
+      target: portal-api
+    depends_on:
+      - project-service
+    restart: unless-stopped
+  frontend:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:8083:8080"
+    depends_on:
+      - portal-api
+    restart: unless-stopped
+volumes:
+  dynamodb-data:

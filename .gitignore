@@ -1,0 +1,13 @@
+.tools/
+.run/
+node_modules/
+dist/
+*.exe
+*.log
+.env
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+terraform.tfvars
+!terraform.tfvars.example

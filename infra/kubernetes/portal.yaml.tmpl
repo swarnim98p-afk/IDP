@@ -1,0 +1,163 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: portal
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: project-service
+  namespace: portal
+  annotations:
+    eks.amazonaws.com/role-arn: __PROJECT_ROLE_ARN__
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: project-service
+  namespace: portal
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: project-service}
+  template:
+    metadata:
+      labels: {app: project-service}
+    spec:
+      serviceAccountName: project-service
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: project-service
+          image: __PROJECT_IMAGE__
+          ports: [{containerPort: 8082}]
+          env:
+            - {name: GIN_MODE, value: release}
+            - {name: PROJECT_LISTEN_ADDR, value: ':8082'}
+            - {name: PROJECT_STORE, value: dynamodb}
+            - {name: AWS_REGION, value: '__AWS_REGION__'}
+            - {name: DYNAMODB_TABLE, value: '__TABLE_NAME__'}
+            - {name: AWS_EC2_METADATA_DISABLED, value: 'true'}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8082}
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8082}
+            initialDelaySeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata: {name: project-service, namespace: portal}
+spec:
+  selector: {app: project-service}
+  ports: [{port: 8082, targetPort: 8082}]
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: portal-api, namespace: portal}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: portal-api}
+  template:
+    metadata:
+      labels: {app: portal-api}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: portal-api
+          image: __PORTAL_IMAGE__
+          ports: [{containerPort: 8080}]
+          env:
+            - {name: GIN_MODE, value: release}
+            - {name: PORTAL_LISTEN_ADDR, value: ':8080'}
+            - {name: PROJECT_SERVICE_URL, value: 'http://project-service:8082'}
+            - {name: FRONTEND_DIR, value: '/app/no-static-files'}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 128Mi}
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080}
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080}
+            initialDelaySeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata: {name: portal-api, namespace: portal}
+spec:
+  selector: {app: portal-api}
+  ports: [{port: 8080, targetPort: 8080}]
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: frontend, namespace: portal}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: frontend}
+  template:
+    metadata:
+      labels: {app: frontend}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: frontend
+          image: __FRONTEND_IMAGE__
+          ports: [{containerPort: 8080}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 100m, memory: 32Mi}
+            limits: {cpu: 500m, memory: 128Mi}
+          volumeMounts: [{name: tmp, mountPath: /tmp}]
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080}
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080}
+            initialDelaySeconds: 15
+      volumes: [{name: tmp, emptyDir: {}}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: frontend, namespace: portal}
+spec:
+  selector: {app: frontend}
+  ports: [{port: 8080, targetPort: 8080}]
+  type: ClusterIP

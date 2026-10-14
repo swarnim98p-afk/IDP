@@ -1,0 +1,6 @@
+aws_region          = "ap-south-1"
+expected_account_id = "316865756899"
+project_name        = "developer-portal"
+kubernetes_version = "1.36"
+admin_principal_arn = "arn:aws:iam::316865756899:role/REPLACE_WITH_SIGNED_IN_ROLE"
+admin_cidr          = "REPLACE_WITH_PUBLIC_IP/32"

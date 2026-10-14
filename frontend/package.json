@@ -1,0 +1,9 @@
+{
+  "name": "launchpad-portal",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": { "dev": "vite --host 127.0.0.1 --port 5173", "build": "vite build", "preview": "vite preview --host 127.0.0.1 --port 4173", "test:e2e": "node tests/e2e.mjs" },
+  "dependencies": { "react": "^19.2.0", "react-dom": "^19.2.0" },
+  "devDependencies": { "vite": "^7.3.1", "@playwright/test": "^1.57.0" }
+}
